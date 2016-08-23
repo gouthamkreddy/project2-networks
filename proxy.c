@@ -90,7 +90,7 @@ int main(int argc, char * argv[]) {
 				if(status < 0)
 				{
 					perror("Error: recv\n");	
-					write_response(new_sockid, 500, 0);
+					// write_response(new_sockid, 500, 0);
 					continue;
 				} 
 				else if(status == 0)
@@ -99,10 +99,22 @@ int main(int argc, char * argv[]) {
 					break;
 				} 
 
+				printf("%s\n", recv_buf);
+
 				/*--- Parsing ---*/
-				char* file_path = parse_req(new_sockid, strlen(recv_buf), recv_buf);
-				if(file_path == NULL) continue;
-				printf("request: %s---", file_path);
+				struct ParsedRequest * parse;
+				printf("size=%ld\n", sizeof(struct ParsedRequest));
+
+				parse = (struct ParsedRequest *)malloc(1*sizeof(struct ParsedRequest));
+				printf("size=%ld %ld\n", sizeof(parse), sizeof(struct ParsedRequest));
+
+				printf("here\n");
+				int ret = ParsedRequest_parse(parse, recv_buf, strlen(recv_buf));
+				printf("here\n");
+				
+				printf("ret - %d\n", ret);
+				printf("%s\n", parse->port);
+				
 
 				/*--- Making request to server ---*/
 				

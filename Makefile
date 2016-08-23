@@ -1,7 +1,7 @@
-CC=g++
+CC=gcc
 CFLAGS= -g -Wall -Werror
 
-all: proxy
+all: temp
 
 proxy: proxy.c
 	$(CC) $(CFLAGS) -o proxy_parse.o -c proxy_parse.c
@@ -13,3 +13,6 @@ clean:
 
 tar:
 	tar -cvzf ass1.tgz proxy.c README Makefile proxy_parse.c proxy_parse.h
+
+temp:
+	gcc proxy.c -o proxy
