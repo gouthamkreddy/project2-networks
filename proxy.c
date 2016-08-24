@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <errno.h>
@@ -72,59 +73,81 @@ int main(int argc, char * argv[]) {
 		if((new_sockid = accept(sockid, (struct sockaddr *)&sin, &len)) < 0)
 		{
 			perror("Error: accept");
-			continue;
+			// continue;/
 		} 
 		printf("New Connection Created\n");
 
+		printf("waiting---");
+		bzero((char *)recv_buf, MAX_SIZE);
+		status = recv(new_sockid, recv_buf, MAX_SIZE, 0);
+		if(status < 0)
+		{
+			perror("Error: recv\n");	
+			// continue;
+		} 
+		else if(status == 0)
+		{
+			printf("Client Disconnected\n");
+			// break;
+		} 
+
 		pid = fork();
-		child_process_count = child_process_count + 1;
+		// child_process_count = child_process_count + 1;
 		if(pid == 0)
 		{	
 			close(sockid);
-			FILE *fsp = fdopen(new_sockid, "r+b");
-			while(1)
+			printf("%s\n", recv_buf);
+
+			/*--- Parsing ---*/
+			struct ParsedRequest * parsed_req;
+			parsed_req = ParsedRequest_create();
+
+			int ret = ParsedRequest_parse(parsed_req, recv_buf, status);
+
+			if (ret == -1)
 			{
-				printf("waiting---");
-				bzero((char *)recv_buf, MAX_SIZE);
-				status = recv(new_sockid, recv_buf, MAX_SIZE, 0);
-				if(status < 0)
-				{
-					perror("Error: recv\n");	
-					// write_response(new_sockid, 500, 0);
-					continue;
-				} 
-				else if(status == 0)
-				{
-					printf("Client Disconnected\n");
-					break;
-				} 
+				// send response error;
+			}
+			
+			printf("%s\n", parsed_req->host);
+			if (parsed_req->port == NULL)
+			{
+				parsed_req->port = "80";
+			}
+			struct hostent *host_1 = gethostbyname(parsed_req->host);
+			// inet_ntoa(*(struct in_addr *)host_1->h_name)
+			printf("IP ADDRESS->%s\n",inet_ntoa(*(struct in_addr *)host_1->h_name) );
+			/*--- Making request to server ---*/
+			struct sockaddr_in sin1;				
+			int sockid1;
 
-				printf("%s\n", recv_buf);
+			/*	Setting values of sockaddr_in  */
+			bzero((char *)&sin1, sizeof(sin1));
+			sin1.sin_family = AF_INET;
+			sin1.sin_port = htons(atoi(parsed_req->port));
+			bcopy((char *)host_1->h_addr, (char *)&sin1.sin_addr.s_addr, host_1->h_length);
 
-				/*--- Parsing ---*/
-				struct ParsedRequest * parse;
-				printf("size=%ld\n", sizeof(struct ParsedRequest));
+			/*	Creating a socket  */
+			if ((sockid1 = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+				perror("Error: socket");
+				return 1;
+			}
+			
+			/*	Connecting to Socket  */
+			if (connect(sockid1, (struct sockaddr *)&sin1, sizeof(sin1)) < 0){
+				perror("Error: connect");
+				close(sockid1);
+				return 1;
+			}
 
-				parse = (struct ParsedRequest *)malloc(1*sizeof(struct ParsedRequest));
-				printf("size=%ld %ld\n", sizeof(parse), sizeof(struct ParsedRequest));
+			printf("hi\n");
 
-				printf("here\n");
-				int ret = ParsedRequest_parse(parse, recv_buf, strlen(recv_buf));
-				printf("here\n");
-				
-				printf("ret - %d\n", ret);
-				printf("%s\n", parse->port);
-				
-
-				/*--- Making request to server ---*/
+			
 				
 				/*--- Receiving response from server ---*/
 
 				/*--- Sending response to client ---*/
-		  		
-			}
 
-			fclose(fsp);
 			exit(0);
 			child_process_count = child_process_count - 1;
 			printf("Connection Closed\n");
