@@ -107,6 +107,7 @@ int main(int argc, char * argv[]) {
 			if (ret == -1)
 			{
 				// send response error;
+				printf("ParsedRequest_parse failed\n");
 			}
 			
 			printf("%s\n", parsed_req->host);
@@ -115,8 +116,8 @@ int main(int argc, char * argv[]) {
 				parsed_req->port = "80";
 			}
 			struct hostent *host_1 = gethostbyname(parsed_req->host);
-			// inet_ntoa(*(struct in_addr *)host_1->h_name)
-			printf("IP ADDRESS->%s\n",inet_ntoa(*(struct in_addr *)host_1->h_name) );
+			// printf("IP ADDRESS->%s\n",inet_ntoa(*(struct in_addr *)host_1->h_name) );
+			
 			/*--- Making request to server ---*/
 			struct sockaddr_in sin1;				
 			int sockid1;
@@ -127,13 +128,13 @@ int main(int argc, char * argv[]) {
 			sin1.sin_port = htons(atoi(parsed_req->port));
 			bcopy((char *)host_1->h_addr, (char *)&sin1.sin_addr.s_addr, host_1->h_length);
 
-			/*	Creating a socket  */
+			/*	Creating a socket to connect to server  */
 			if ((sockid1 = socket(AF_INET, SOCK_STREAM, 0)) < 0){
 				perror("Error: socket");
 				return 1;
 			}
 			
-			/*	Connecting to Socket  */
+			/*	Connecting to Server Socket  */
 			if (connect(sockid1, (struct sockaddr *)&sin1, sizeof(sin1)) < 0){
 				perror("Error: connect");
 				close(sockid1);
@@ -142,7 +143,12 @@ int main(int argc, char * argv[]) {
 
 			printf("hi\n");
 
+			snprintf(send_buf, 4096, "GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n\0", parsed_req->path, parsed_req->host);
+			//eror print
+
+			send(sockid1, send_buf, strlen(send_buf), 0);
 			
+
 				
 				/*--- Receiving response from server ---*/
 
