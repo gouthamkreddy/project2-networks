@@ -121,38 +121,36 @@ int main(int argc, char * argv[]) {
 			/*--- Making request to server ---*/
 			struct sockaddr_in sin1;				
 			int sockid1;
-
-			/*	Setting values of sockaddr_in  */
+			/*--- Setting values of sockaddr_in ---*/
 			bzero((char *)&sin1, sizeof(sin1));
 			sin1.sin_family = AF_INET;
 			sin1.sin_port = htons(atoi(parsed_req->port));
 			bcopy((char *)host_1->h_addr, (char *)&sin1.sin_addr.s_addr, host_1->h_length);
-
 			/*	Creating a socket to connect to server  */
 			if ((sockid1 = socket(AF_INET, SOCK_STREAM, 0)) < 0){
 				perror("Error: socket");
 				return 1;
 			}
-			
 			/*	Connecting to Server Socket  */
 			if (connect(sockid1, (struct sockaddr *)&sin1, sizeof(sin1)) < 0){
 				perror("Error: connect");
 				close(sockid1);
 				return 1;
 			}
-
-			printf("hi\n");
-
+			bzero((char *)send_buf, MAX_SIZE);
 			snprintf(send_buf, 4096, "GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n\0", parsed_req->path, parsed_req->host);
 			//eror print
 
 			send(sockid1, send_buf, strlen(send_buf), 0);
-			
-
 				
-				/*--- Receiving response from server ---*/
-
-				/*--- Sending response to client ---*/
+			/*--- Receiving and Sending response ---*/
+			while(1)
+			{
+				bzero((char *)recv_buf, MAX_SIZE);
+				int length = recv(sockid1, recv_buf, MAX_SIZE, 0);
+				if (length < 0) break;
+				send(new_sockid, recv_buf, strlen(recv_buf), 0);
+			}
 
 			exit(0);
 			child_process_count = child_process_count - 1;
