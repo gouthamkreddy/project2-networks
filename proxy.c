@@ -18,7 +18,22 @@
 #define MAX_PENDING 10						
 #define MAX_SIZE    4096
 
-int child_process_count = 0;
+void response_500(int sockid){
+	char buffer[4096];
+
+	strcpy(buffer, "HTTP/1.0 500 Internal Server Error\r\n");
+  	write(sockid, buffer, strlen(buffer));
+  	strcpy(buffer, "Content-length: 117\r\n");
+  	write(sockid, buffer, strlen(buffer));
+	strcpy(buffer, "Connection: close\r\n");
+	write(sockid, buffer, strlen(buffer));
+  	strcpy(buffer, "Content-Type: text/html\r\n\r\n");
+	write(sockid, buffer, strlen(buffer));
+  	strcpy(buffer, "<html>\n<head>\n<title>Internal Server Error</title>\n</head>\r\n");
+  	write(sockid, buffer, strlen(buffer));
+  	strcpy(buffer, "<body>\n<p>500 Internal Server Error</p>\n</body>\n</html>\r\n");
+  	write(sockid, buffer, strlen(buffer));
+}
 
 int main(int argc, char * argv[]) {
   	int sockid, new_sockid;   					
@@ -65,7 +80,7 @@ int main(int argc, char * argv[]) {
 		return 1;
 	}
 
-	printf("Proxy Serving Requests on Port %d\n", atoi(argv[1]));
+	printf("Proxy Running on Port %d\n", atoi(argv[1]));
 
 	while(1)
 	{
@@ -73,51 +88,46 @@ int main(int argc, char * argv[]) {
 		if((new_sockid = accept(sockid, (struct sockaddr *)&sin, &len)) < 0)
 		{
 			perror("Error: accept");
-			// continue;/
+			continue;
 		} 
-		printf("New Connection Created\n");
-
-		printf("waiting---");
-		bzero((char *)recv_buf, MAX_SIZE);
-		status = recv(new_sockid, recv_buf, MAX_SIZE, 0);
-		if(status < 0)
-		{
-			perror("Error: recv\n");	
-			// continue;
-		} 
-		else if(status == 0)
-		{
-			printf("Client Disconnected\n");
-			// break;
-		} 
-
 		pid = fork();
-		// child_process_count = child_process_count + 1;
 		if(pid == 0)
-		{	
+		{
 			close(sockid);
-			printf("%s\n", recv_buf);
+			printf("New Connection Created:::waiting\n");
+			bzero((char *)recv_buf, MAX_SIZE);
+			status = recv(new_sockid, recv_buf, MAX_SIZE-1, 0);
+			if(status < 0)
+			{
+				perror("Error: recv\n");	
+				continue;
+			} 
+			else if(status == 0)
+			{
+				printf("Client Disconnected\n");
+				continue;
+			} 
+			strcat(recv_buf, "\r\n");
 
 			/*--- Parsing ---*/
 			struct ParsedRequest * parsed_req;
 			parsed_req = ParsedRequest_create();
-
-			int ret = ParsedRequest_parse(parsed_req, recv_buf, status);
-
+			int ret = ParsedRequest_parse(parsed_req, recv_buf, status+2);
 			if (ret == -1)
 			{
-				// send response error;
+				response_500(new_sockid);
 				printf("ParsedRequest_parse failed\n");
+				close(new_sockid);
+				printf("Connection Closed\n");
+				exit(0);
 			}
 			
-			printf("%s\n", parsed_req->host);
+			printf("port : %s\n", parsed_req->port);
+
 			if (parsed_req->port == NULL)
-			{
 				parsed_req->port = "80";
-			}
-			struct hostent *host_1 = gethostbyname(parsed_req->host);
-			// printf("IP ADDRESS->%s\n",inet_ntoa(*(struct in_addr *)host_1->h_name) );
-			
+			printf("port : %s\n", parsed_req->port);
+
 			/*--- Making request to server ---*/
 			struct sockaddr_in sin1;				
 			int sockid1;
@@ -125,36 +135,57 @@ int main(int argc, char * argv[]) {
 			bzero((char *)&sin1, sizeof(sin1));
 			sin1.sin_family = AF_INET;
 			sin1.sin_port = htons(atoi(parsed_req->port));
+			struct hostent *host_1 = gethostbyname(parsed_req->host);
 			bcopy((char *)host_1->h_addr, (char *)&sin1.sin_addr.s_addr, host_1->h_length);
-			/*	Creating a socket to connect to server  */
+			/*--- Creating a socket to connect to server ---*/
 			if ((sockid1 = socket(AF_INET, SOCK_STREAM, 0)) < 0){
 				perror("Error: socket");
-				return 1;
+				response_500(new_sockid);
+				close(new_sockid);
+				printf("Connection Closed\n");
+				exit(0);
 			}
-			/*	Connecting to Server Socket  */
+			/*--- Connecting to Server Socket ---*/
 			if (connect(sockid1, (struct sockaddr *)&sin1, sizeof(sin1)) < 0){
 				perror("Error: connect");
 				close(sockid1);
-				return 1;
+				response_500(new_sockid);
+				close(new_sockid);
+				printf("Connection Closed\n");
+				exit(0);
 			}
+			
+			/*--- send_buf to send to server ---*/
 			bzero((char *)send_buf, MAX_SIZE);
-			snprintf(send_buf, 4096, "GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n\0", parsed_req->path, parsed_req->host);
-			//eror print
-
+			snprintf(send_buf, 4096, "GET %s HTTP/1.0\r\n", parsed_req->path);
+			bzero((char *)recv_buf, MAX_SIZE);
+			sprintf(recv_buf, "Host: %s\r\n", parsed_req->host);
+			strcat(send_buf, recv_buf);
+			for (int i = 0; i < parsed_req->headersused; ++i)
+			{
+				bzero((char *)recv_buf, MAX_SIZE);
+				if(!strcmp(parsed_req->headers[i].key, "Connection"))
+					continue;
+				sprintf(recv_buf, "%s: %s\r\n", parsed_req->headers[i].key, parsed_req->headers[i].value);
+				strcat(send_buf, recv_buf);
+			}
+			strcat(send_buf, "Connection: close\r\n\r\n");
 			send(sockid1, send_buf, strlen(send_buf), 0);
 				
 			/*--- Receiving and Sending response ---*/
 			while(1)
 			{
 				bzero((char *)recv_buf, MAX_SIZE);
-				int length = recv(sockid1, recv_buf, MAX_SIZE, 0);
-				if (length < 0) break;
-				send(new_sockid, recv_buf, strlen(recv_buf), 0);
+				int length = recv(sockid1, recv_buf, MAX_SIZE-1, 0);
+				if (length <= 0) break;
+				recv_buf[length] = '\0';
+				send(new_sockid, recv_buf, length+1, 0);
 			}
 
+			close(sockid1);
+			close(new_sockid);
+			printf("Child Process Exited\n");
 			exit(0);
-			child_process_count = child_process_count - 1;
-			printf("Connection Closed\n");
 		}
 		
     	close(new_sockid);	
