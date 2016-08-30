@@ -162,7 +162,7 @@ int main(int argc, char * argv[]) {
 			
 			/*--- send_buf to send to server ---*/
 			bzero((char *)send_buf, MAX_SIZE);
-			snprintf(send_buf, 4096, "GET %s HTTP/1.0\r\n", parsed_req->path);
+			snprintf(send_buf, MAX_SIZE, "GET %s HTTP/1.0\r\n", parsed_req->path);
 			bzero((char *)recv_buf, MAX_SIZE);
 			sprintf(recv_buf, "Host: %s\r\n", parsed_req->host);
 			strcat(send_buf, recv_buf);
@@ -181,10 +181,9 @@ int main(int argc, char * argv[]) {
 			while(1)
 			{
 				bzero((char *)recv_buf, MAX_SIZE);
-				int length = recv(sockid1, recv_buf, MAX_SIZE-1, 0);
+				int length = recv(sockid1, recv_buf, MAX_SIZE, 0);
 				if (length <= 0) break;
-				recv_buf[length] = '\0';
-				send(new_sockid, recv_buf, length+1, 0);
+				send(new_sockid, recv_buf, length, 0);
 			}
 
 			close(sockid1);
