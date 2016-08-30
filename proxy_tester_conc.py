@@ -317,7 +317,7 @@ def main():
                   totalcount += 1;
                   print '### Testing apache benchmark on args [%s]' % arg
                   cmdstr = "ab -X 127.0.0.1:%s %s %s" % (port, arg, url);
-
+                  print cmdstr
                   success = False;
                   (sin, sout) = os.popen4 (cmdstr);
                   line = sout.readline ()
@@ -592,6 +592,7 @@ def http_exchange(host, port, data):
      conn = telnetlib.Telnet()
      conn.open(host, port)
      conn.write(data)
+     time.sleep(2)
      ret_data = conn.read_all()
      conn.close()
      return ret_data

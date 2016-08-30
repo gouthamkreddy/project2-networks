@@ -40,7 +40,7 @@ int main(int argc, char * argv[]) {
 	struct sockaddr_in sin;						
 	int status;
 	pid_t  pid;
-	char send_buf[MAX_SIZE], recv_buf[MAX_SIZE];						
+	char send_buf[MAX_SIZE], recv_buf[MAX_SIZE], recv1_buf[MAX_SIZE];						
 	socklen_t len;
 	
 	/*--- Checking number of arguments ---*/
@@ -93,10 +93,18 @@ int main(int argc, char * argv[]) {
 		pid = fork();
 		if(pid == 0)
 		{
-			close(sockid);
+			// close(sockid);
 			printf("New Connection Created:::waiting\n");
 			bzero((char *)recv_buf, MAX_SIZE);
-			status = recv(new_sockid, recv_buf, MAX_SIZE-1, 0);
+			
+			status = 0;
+			while(!strstr(recv_buf,"\r\n\r\n")){
+				bzero((char *)recv1_buf, MAX_SIZE);
+				status = status + recv(new_sockid, recv1_buf, MAX_SIZE-1, 0);
+				strcat(recv_buf, recv1_buf);
+			}
+
+			printf("status: %d size: %ld\n%s\n", status, strlen(recv_buf), recv_buf);
 			if(status < 0)
 			{
 				perror("Error: recv\n");	
@@ -107,12 +115,12 @@ int main(int argc, char * argv[]) {
 				printf("Client Disconnected\n");
 				continue;
 			} 
-			strcat(recv_buf, "\r\n");
+			// strcat(recv_buf, "\r\n");
 
 			/*--- Parsing ---*/
 			struct ParsedRequest * parsed_req;
 			parsed_req = ParsedRequest_create();
-			int ret = ParsedRequest_parse(parsed_req, recv_buf, status+2);
+			int ret = ParsedRequest_parse(parsed_req, recv_buf, strlen(recv_buf));
 			if (ret == -1)
 			{
 				response_500(new_sockid);
@@ -121,12 +129,9 @@ int main(int argc, char * argv[]) {
 				printf("Connection Closed\n");
 				exit(0);
 			}
-			
-			printf("port : %s\n", parsed_req->port);
 
 			if (parsed_req->port == NULL)
-				parsed_req->port = "80";
-			printf("port : %s\n", parsed_req->port);
+				parsed_req->port = (char*)"80";
 
 			/*--- Making request to server ---*/
 			struct sockaddr_in sin1;				
@@ -161,7 +166,7 @@ int main(int argc, char * argv[]) {
 			bzero((char *)recv_buf, MAX_SIZE);
 			sprintf(recv_buf, "Host: %s\r\n", parsed_req->host);
 			strcat(send_buf, recv_buf);
-			for (int i = 0; i < parsed_req->headersused; ++i)
+			for (unsigned int i = 0; i < parsed_req->headersused; ++i)
 			{
 				bzero((char *)recv_buf, MAX_SIZE);
 				if(!strcmp(parsed_req->headers[i].key, "Connection"))
@@ -187,7 +192,6 @@ int main(int argc, char * argv[]) {
 			printf("Child Process Exited\n");
 			exit(0);
 		}
-		
     	close(new_sockid);	
 	}
 
