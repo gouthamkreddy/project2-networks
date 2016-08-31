@@ -42,6 +42,10 @@ int main(int argc, char * argv[]) {
 	pid_t  pid;
 	char send_buf[MAX_SIZE], recv_buf[MAX_SIZE], recv1_buf[MAX_SIZE];						
 	socklen_t len;
+	int number_active = 0;
+	int max_active = 20; 
+
+
 	
 	/*--- Checking number of arguments ---*/
   	if(argc!=2){
@@ -90,6 +94,11 @@ int main(int argc, char * argv[]) {
 			perror("Error: accept");
 			continue;
 		} 
+		
+		for (; number_active >= max_active; --number_active){
+    		wait(NULL);
+		}
+		
 		pid = fork();
 		if(pid == 0)
 		{
