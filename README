@@ -2,10 +2,12 @@
 
     README file for Assignment 1 - HTTP Proxy
 
-           Name: 
- Username/Login: 
+           Name: Goutham Reddy Konduru
+ Username/Login: greddy@iitk.ac.in/13334
  
 ================================================================
 
 DESCRIBE YOUR CODE HERE AND DESIGN DECISIONS YOU MADE
 
+Implementation of realloc:
+Started with 4KB buffer and realloced it till 8KB. If it becomes more than 8KB, internal server error is being shown.

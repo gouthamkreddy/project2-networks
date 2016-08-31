@@ -1,4 +1,4 @@
-CC=gcc
+CC=g++
 CFLAGS= -g -Wall -Werror
 
 all: proxy
@@ -12,4 +12,4 @@ clean:
 	rm -f proxy *.o
 
 tar:
-	tar -cvzf ass1.tgz proxy.c README Makefile proxy_parse.c proxy_parse.h
+	tar -cvzf project2.tar proxy.c README Makefile proxy_parse.c proxy_parse.h report.pdf

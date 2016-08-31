@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/uio.h>
+#include <sys/wait.h>
 #include <time.h>
 
 #include "proxy_parse.h"
@@ -40,10 +41,11 @@ int main(int argc, char * argv[]) {
 	struct sockaddr_in sin;						
 	int status;
 	pid_t  pid;
-	char send_buf[MAX_SIZE], recv_buf[MAX_SIZE], recv1_buf[MAX_SIZE];						
+	char send_buf[MAX_SIZE], recv1_buf[MAX_SIZE];						
+	char* recv_buf = (char *) malloc(4096);
 	socklen_t len;
 	int number_active = 0;
-	int max_active = 20; 
+	int max_active = 40; 
 
 
 	
@@ -94,26 +96,40 @@ int main(int argc, char * argv[]) {
 			perror("Error: accept");
 			continue;
 		} 
+
+		pid_t w_pid;
+		int number;
+		printf("%d %d\n", number, number_active);
 		
-		for (; number_active >= max_active; --number_active){
-    		wait(NULL);
+		for (; number_active >= max_active; number_active--){
+
+    		w_pid = wait(&number);
+    		printf("%d\n", (int)w_pid);
 		}
-		
+
 		pid = fork();
+		number_active++;
 		if(pid == 0)
 		{
 			// close(sockid);
+			
+    		struct timeval timeout;
+			timeout.tv_sec = 5;
+			timeout.tv_usec = 0;
+			setsockopt(new_sockid, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+
 			printf("New Connection Created:::waiting\n");
 			bzero((char *)recv_buf, MAX_SIZE);
 			
 			status = 0;
 			while(!strstr(recv_buf,"\r\n\r\n")){
 				bzero((char *)recv1_buf, MAX_SIZE);
-				status = status + recv(new_sockid, recv1_buf, MAX_SIZE-1, 0);
+				status = recv(new_sockid, recv1_buf, MAX_SIZE-1, 0);
+				if(strlen(recv_buf) + status > 4096)
+					recv_buf = (char *) realloc(recv_buf, 8192);
 				strcat(recv_buf, recv1_buf);
 			}
 
-			printf("status: %d size: %ld\n%s\n", status, strlen(recv_buf), recv_buf);
 			if(status < 0)
 			{
 				perror("Error: recv\n");	
@@ -124,6 +140,14 @@ int main(int argc, char * argv[]) {
 				printf("Client Disconnected\n");
 				continue;
 			} 
+
+			if(strlen(recv_buf) >= 8192){
+				response_500(new_sockid);
+				printf("ParsedRequest_parse failed\n");
+				close(new_sockid);
+				printf("Connection Closed\n");
+				exit(0);
+			}
 			// strcat(recv_buf, "\r\n");
 
 			/*--- Parsing ---*/
@@ -170,8 +194,8 @@ int main(int argc, char * argv[]) {
 			}
 			
 			/*--- send_buf to send to server ---*/
-			bzero((char *)send_buf, MAX_SIZE);
-			snprintf(send_buf, MAX_SIZE, "GET %s HTTP/1.0\r\n", parsed_req->path);
+			bzero((char *)send_buf, 8096);
+			snprintf(send_buf, 8096, "GET %s HTTP/1.0\r\n", parsed_req->path);
 			bzero((char *)recv_buf, MAX_SIZE);
 			sprintf(recv_buf, "Host: %s\r\n", parsed_req->host);
 			strcat(send_buf, recv_buf);
